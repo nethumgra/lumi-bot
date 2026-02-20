@@ -1,5 +1,6 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const axios = require('axios');
 const express = require('express');
 require('dotenv').config();
@@ -7,7 +8,31 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 8000;
 
-app.get('/', (req, res) => res.send('Lumi is Awake and Flirty! 💖✨'));
+let lastQR = null;
+
+// QR code එක browser වලින් බලන්න!
+app.get('/', (req, res) => {
+    if (lastQR) {
+        res.send(`
+        <html>
+        <head><title>Lumi QR</title><meta http-equiv="refresh" content="30"></head>
+        <body style="background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0">
+        <h2 style="color:#fff;font-family:sans-serif">📱 Scan with WhatsApp</h2>
+        <img src="${lastQR}" style="width:300px;height:300px"/>
+        <p style="color:#aaa;font-family:sans-serif">Page auto-refreshes every 30 seconds</p>
+        </body></html>
+        `);
+    } else {
+        res.send(`
+        <html>
+        <head><meta http-equiv="refresh" content="5"></head>
+        <body style="background:#000;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <h2 style="color:#fff;font-family:sans-serif">⏳ Lumi starting... please wait</h2>
+        </body></html>
+        `);
+    }
+});
+
 app.listen(port, '0.0.0.0', () => console.log(`💖 Lumi heartbeat on port ${port}`));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -61,24 +86,28 @@ const client = new Client({
             '--disable-background-networking',
             '--disable-default-apps',
             '--disable-sync',
-            '--disable-translate',
             '--hide-scrollbars',
             '--mute-audio',
-            '--safebrowsing-disable-auto-update',
             '--js-flags=--max-old-space-size=256',
         ]
     }
 });
 
-client.on('qr', (qr) => {
-    console.log('\n====================================');
-    console.log('📱 QR CODE - SCAN WITH WHATSAPP NOW!');
-    console.log('====================================\n');
+client.on('qr', async (qr) => {
+    console.log('📱 QR Code generated! Open your Railway URL to scan!');
     qrcode.generate(qr, { small: true });
-    console.log('\n====================================\n');
+    try {
+        lastQR = await QRCode.toDataURL(qr);
+        console.log('✅ QR ready at your service URL!');
+    } catch (err) {
+        console.error('QR generate error:', err);
+    }
 });
 
-client.on('authenticated', () => console.log('✅ WhatsApp Authenticated!'));
+client.on('authenticated', () => {
+    lastQR = null;
+    console.log('✅ WhatsApp Authenticated!');
+});
 client.on('ready', () => console.log('💖 Lumi is Online 24/7! 💖'));
 client.on('auth_failure', (msg) => console.error('❌ Auth Failed:', msg));
 
